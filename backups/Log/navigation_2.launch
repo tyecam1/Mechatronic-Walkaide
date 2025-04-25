@@ -1,0 +1,36 @@
+<launch>
+
+  <arg name="record" default="false" />
+
+  <!-- Map the USB serial devices for the Arduinos -->
+  <arg name="acm0" default="/dev/ttyACM0"/>
+  <arg name="acm1" default="/dev/ttyACM1"/>
+  <arg name="baud" default="75600"/>
+
+  <!-- Launch rosserial node for the first Arduino -->
+  <node name="arduino0_serial_node" pkg="rosserial_python" type="serial_node.py" output="screen">
+      <param name="port" value="$(arg acm0)"/>
+      <param name="baud" value="$(arg baud)"/>
+  </node>
+
+  <!-- Launch rosserial node for the second Arduino -->
+  <node name="arduino1_serial_node" pkg="rosserial_python" type="serial_node.py" output="screen">
+      <param name="port" value="$(arg acm1)"/>
+      <param name="baud" value="$(arg baud)"/>
+  </node>
+
+  <!-- Obstacle Detection Node -->
+  <node name="obstacle_detection" pkg="apf_navigation" type="obstacle_detection_pub.py">
+  </node>
+
+  <!-- Launch the APF navigation node -->
+  <node name="apf_navigation_node" pkg="apf_navigation" type="navigation.py" output="screen">
+  </node>
+
+
+  <group if="$(arg record)">
+    <node pkg="apf_navigation" type="system_monitor.py" name="system_monitor_pi5" output="screen" />
+    <!-- <node pkg="apf_navigation" type="datalogger.py" name="data_logger" output="screen" /> -->
+    <node pkg="rosbag" type="record" name="rosbag_record" output="screen" args="-O recorded_data.bag /rtabmap/odom /nano/imu_corrected /obstacle_info /arduino_commands /apf_forces /diagnostics /tf /tf_static /rtabmap/cloud_obstacles /rtabmap/cloud_map /camera/status /rtabmap/info /system_diagnostics"/>
+  </group>
+</launch>

@@ -1,0 +1,133 @@
+<launch>
+    <rosparam param="log_to_rosout_level">2</rosparam>   
+    <rosparam param="camera/enable_theora">false</rosparam>
+    <rosparam param="camera/auto_exposure">false</rosparam>
+    <rosparam param="rtabmap/DetectionRate">5.0</rosparam>
+    <rosparam param="rtabmap/Grid/CellSize">0.2</rosparam>
+    <rosparam param="rtabmap/Grid/RangeMax">3.5</rosparam>
+    <rosparam param="rtabmap/IMU/Rate">20</rosparam>
+    <rosparam param="rtabmap/IMU/BufferSize">100</rosparam>
+    <rosparam param="rtabmap/OdomF2M/MaxSize">5000</rosparam>
+    <rosparam param="rtabmap/OdomF2M/BundleAdjustment">1</rosparam>
+    <rosparam param="rtabmap/OdomF2M/BundleAdjustmentMaxFrames">10</rosparam>
+    <rosparam param="Depth/ConfidenceThreshold">80</rosparam>
+    <rosparam param="enable_theora">false</rosparam>
+    <rosparam param="auto_exposure">true</rosparam>
+    <rosparam param="rtabmap/rtabmap/publish_tf">false</rosparam>
+    <rosparam param="rtabmap/rgbd_odometry/publish_tf">false</rosparam>
+    <rosparam param="rtabmap/Grid/FromDepth">false</rosparam>  <!-- Skip grid map -->
+    <rosparam param="rtabmap/odom_sensor_sync">true</rosparam>
+
+
+    <!-- Fixing wait_for_transform_duration -->
+    <param name="wait_for_transform_duration" value="1.0" />
+
+
+    <!-- Start RealSense Camera -->
+    <include file="$(find realsense2_camera)/launch/rs_camera.launch">
+        <arg name="align_depth" value="true"/>
+        <arg name="enable_sync" value="true"/>
+        <arg name="enable_gyro" value="false"/>
+        <arg name="enable_accel" value="false"/>
+        <arg name="enable_color" value="true"/>
+        <arg name="enable_depth" value="true"/>
+        <arg name="enable_infra" value="false"/>
+        <arg name="enable_infra1" value="false"/>
+        <arg name="enable_infra2" value="false"/>
+        <arg name="enable_fisheye" value="false"/>
+        <arg name="depth_fps" value="30"/>
+        <arg name="color_fps" value="30"/>
+        <arg name="publish_tf" value="true"/>
+        <arg name="tf_publish_rate" value="30"/>
+        <arg name="usb_port_id" value=""/>
+        <arg name="color_width" value="640"/>
+        <arg name="color_height" value="480"/>
+        <arg name="depth_width" value="640"/>
+        <arg name="depth_height" value="480"/>
+    </include>
+
+    <!-- Define Serial Port for Arduino Nano -->
+    <arg name="port" default="/dev/ttyACM1"/>  <!-- Change if necessary -->
+    <arg name="baud" default="57600"/>
+
+    <!-- Run rosserial for Arduino -->
+    <node name="serial_node" pkg="rosserial_python" type="serial_node.py" output="screen">
+        <param name="port" value="$(arg port)"/>
+        <param name="baud" value="$(arg baud)"/>
+    </node>
+
+    <!-- Add delay to ensure RealSense camera initializes before IMU processing -->
+    <param name="wait_for_camera_startup" command="$(eval 'sleep 3')" />
+
+    <!-- IMU Filter (Madgwick) 
+    <node pkg="imu_filter_madgwick" type="imu_filter_node" name="imu_filter">
+        <param name="use_mag" value="false"/>
+        <param name="publish_tf" value="false"/>
+        <param name="world_frame" value="enu"/>
+        <remap from="/imu/data_raw" to="/camera/imu"/>
+        <remap from="/imu/data" to="/camera/imu_corrected"/>
+    </node>
+    -->
+    <node pkg="tf" type="static_transform_publisher" name="tf_imu_to_camera"
+    args="0 0 0 0 0 0 imu_link camera_link 100"/>
+    
+    <node pkg="tf" type="static_transform_publisher" name="tf_imu_to_base"
+    args="0 0 0 0 0 0 imu_link base_link 100"/>
+
+
+    <!-- Extended Kalman Filter (EKF) -->
+    <node pkg="robot_localization" type="ekf_localization_node" name="ekf_imu">
+        <param name="frequency" value="50"/> 
+        <param name="two_d_mode" value="false"/>
+        <param name="map_frame" value="map"/>
+        <param name="odom_frame" value="odom"/>
+        <param name="base_link_frame" value="base_link"/>
+        <param name="world_frame" value="odom"/>
+        <param name="imu0" value="/nano/imu_corrected"/>
+        <param name="odom0" value="/rtabmap/odom"/>
+	
+        <rosparam>
+            imu0_queue_size: 10
+            odom0_queue_size: 10
+            sensor_timeout: 0.2
+            imu0_remove_gravitational_accelleration: true
+            imu0_config: [false, false, false,
+                          true, true, true,
+                          false, false, false,
+                          true, true, true,
+                          true, true, true]
+            odom0_config: [true, true, true,
+                           false, false, false,
+                           false, false, false,
+                           false, false, false,
+                           false, false, false]
+            imu0_differential: false
+            odom0_differential: false
+        </rosparam>
+        <remap from="/odometry/filtered" to="rtabmap/odom_filtered"/>
+    </node>
+
+    <!-- Delay to allow camera to stablise -->
+    <param name="wait_for_imu_startup" command="$(eval 'sleep 3')" />
+
+    <remap from="/rtabmap/odom" to="/rtabmap/odom_filtered"/>
+
+    <node pkg="tf" type="static_transform_publisher" name="tf_odom_to_base"
+    args="0 0 0 0 0 0 /rtabmap/odom_filtered base_link 100"/>
+
+
+    <!-- Start RTAB-Map -->
+    <include file="$(find rtabmap_launch)/launch/rtabmap.launch">
+        <arg name="rtabmap_args" value="--delete_db_on_start --Optimizer/GravitySigma 0.3"/>
+        <arg name="depth_topic" value="/camera/aligned_depth_to_color/image_raw"/>
+        <arg name="rgb_topic" value="/camera/color/image_raw"/>
+        <arg name="camera_info_topic" value="/camera/color/camera_info"/>
+        <arg name="approx_sync" value="true"/>
+        <arg name="approx_sync_max_interval" value="0.02"/>
+        <arg name="wait_imu_to_init" value="true"/>
+        <arg name="imu_topic" value="/nano/imu_corrected"/>
+        <arg name="queue_size" value="20"/>
+        <arg name="sync_queue_size" value="10"/>
+    </include>
+
+</launch>

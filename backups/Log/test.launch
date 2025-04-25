@@ -1,0 +1,51 @@
+<launch>
+    <!-- Start RealSense Camera -->
+    <include file="$(find realsense2_camera)/launch/rs_camera.launch">
+        <arg name="align_depth" value="true"/>
+        <arg name="unite_imu_method" value="linear_interpolation"/>
+        <arg name="enable_gyro" value="true"/>
+        <arg name="enable_accel" value="true"/>
+        <arg name="depth_width" value="848"/>
+        <arg name="depth_height" value="480"/>
+        <arg name="depth_fps" value="30"/>
+        <arg name="color_width" value="1280"/>
+        <arg name="color_height" value="720"/>
+        <arg name="color_fps" value="30"/>
+    </include>
+
+    <!-- Wait for RealSense to Publish IMU Data -->
+    <node pkg="roslaunch" type="test_roslaunch" name="wait_for_camera" args="rostopic echo -n1 /camera/color/image_raw" time-limit="5.0"/>
+
+    <!-- Start IMU Filter Node After Delay -->
+    <node pkg="imu_filter_madgwick" type="imu_filter_node" name="imu_filter" output="screen">
+        <param name="_use_mag" value="false"/>
+        <param name="_publish_tf" value="false"/>
+        <param name="_world_frame" value="enu"/>
+        <remap from="/imu/data_raw" to="/camera/imu"/>
+        <remap from="/imu/data" to="/rtabmap/imu"/>
+    </node>
+
+    <!-- Delay RTAB-Map Launch -->
+    <node pkg="roslaunch" type="test_roslaunch" name="wait_for_imu" args="rostopic echo -n1 /rtabmap/imu" time-limit="5.0"/>
+
+    <include file="$(find rtabmap_launch)/launch/rtabmap.launch">
+        <remap from="/rtabmap/imu" to="/camera/imu"/>
+        <arg name="rtabmap_args" value="--delete_db_on_start --Optimizer/GravitySigma 0.3"/>
+        <arg name="depth_topic" value="/camera/aligned_depth_to_color/image_raw"/>
+        <arg name="rgb_topic" value="/camera/color/image_raw"/>
+        <arg name="camera_info_topic" value="/camera/color/camera_info"/>
+        <arg name="approx_sync" value="false"/>
+        <arg name="wait_imu_to_init" value="true"/>
+        <arg name="imu_topic" value="/rtabmap/imu"/>
+    </include>
+
+    <!-- RGBD Odometry -->
+    <node pkg="rtabmap_odom" type="rgbd_odometry" name="rgbd_odometry">
+        <param name="Odom/ResetCountdown" value="1"/>
+    </node>
+
+    <!-- RTAB-Map Core -->
+    <node pkg="rtabmap_slam" type="rtabmap" name="rtabmap">
+        <param name="Rtabmap/StartNewMapOnLoopClosure" value="true"/>
+    </node>
+</launch>

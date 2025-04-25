@@ -1,0 +1,109 @@
+<launch>
+    <!-- Start RealSense Camera -->
+    <include file="$(find realsense2_camera)/launch/rs_camera.launch">
+        <arg name="align_depth" value="true"/>
+        <arg name="unite_imu_method" value="linear_interpolation"/>
+        <arg name="color_width" value="848"/>
+        <arg name="color_height" value="480"/>
+        <arg name="depth_width" value="848"/>
+        <arg name="depth_height" value="480"/>
+        <arg name="enable_sync" value="true"/>
+        <arg name="enable_gyro" value="false"/>
+        <arg name="enable_accel" value="false"/>
+        <arg name="enable_color" value="true"/>
+        <arg name="enable_depth" value="true"/>
+        <arg name="enable_infra" value="false"/>
+        <arg name="enable_fisheye" value="false"/>
+        <arg name="filters" value="spatial,temporal"/>
+        <arg name="enable_pointcloud" value="true"/>  <!-- Ensure point cloud generation -->
+        <arg name="depth_fps" value="15"/>
+        <arg name="color_fps" value="15"/>
+        <arg name="gyro_fps" value="50"/>
+        <arg name="accel_fps" value="50"/>
+        <arg name="publish_tf" value="true"/>
+        <arg name="tf_publish_rate" value="10"/>
+        <arg name="usb_port_id" value=""/>
+    </include>
+
+    <!-- Define Serial Port for Arduino Nano -->
+    <arg name="port" default="/dev/ttyACM1"/>  <!-- Change if necessary -->
+    <arg name="baud" default="57600"/>
+
+    <!-- Run rosserial for Arduino -->
+    <node name="serial_node" pkg="rosserial_python" type="serial_node.py" output="screen">
+        <param name="port" value="$(arg port)"/>
+        <param name="baud" value="$(arg baud)"/>
+    </node>
+
+    <!-- Add delay to ensure RealSense camera initializes before IMU processing -->
+    <param name="wait_for_camera_startup" command="$(eval 'sleep 3')" />
+
+    <!-- IMU Filter (Madgwick)
+    <node pkg="imu_filter_madgwick" type="imu_filter_node" name="imu_filter">
+        <param name="use_mag" value="false"/>
+        <param name="publish_tf" value="false"/>
+        <param name="world_frame" value="enu"/>
+        <remap from="/imu/data_raw" to="/camera/imu"/>
+        <remap from="/imu/data" to="/camera/imu_corrected"/>
+    </node>
+    -->
+
+    <node pkg="tf" type="static_transform_publisher" name="tf_imu_to_camera"
+    args="0 0 0 0 0 0 imu_link camera_link 20"/>
+
+    <node pkg="tf" type="static_transform_publisher" name="tf_odom_to_camera"
+    args="0 0 0 0 0 0 odom camera_link 20"/>    
+
+    <!-- Extended Kalman Filter (EKF)
+    <node pkg="robot_localization" type="ekf_localization_node" name="ekf_imu">
+        <param name="frequency" value="50"/>   EKF update rate 
+        <param name="two_d_mode" value="false"/>
+        <param name="map_frame" value="map"/>
+        <param name="odom_frame" value="odom"/>
+        <param name="base_link_frame" value="base_link"/>
+        <param name="world_frame" value="odom"/>
+        <param name="publish_tf" value="false"/>  
+        <param name="publish_acceleration" value="true"/>
+        <param name="imu0" value="/camera/imu_corrected"/>
+        <param name="imu1" value="/nano/imu_corrected"/>
+
+        <rosparam param="imu0_config">[false, false, false,
+                                       false, false, false,
+                                       false, false, false,
+                                       true, true, true,
+                                       true, true, true]</rosparam>
+        <rosparam param="imu1_config">[false, false, false,
+                                       true, true, true,
+                                       false, false, false,
+                                       true, true, true,
+                                       true, true, true]</rosparam>
+
+        <param name="imu0_differential" value="false"/>
+        <param name="imu1_differential" value="false"/>
+        <param name="imu0_relative" value="false"/>
+        <param name="imu1_relative" value="false"/>
+        Output IMU-like data from EKF
+        <remap from="/imu/data" to="/rtabmap/imu"/>
+    </node>
+    -->
+
+    <!-- Delay to allow IMU filter to stabilize -->
+    <param name="wait_for_imu_startup" command="$(eval 'sleep 3')" />
+
+    <!-- Start RTAB-Map -->
+    <include file="$(find rtabmap_launch)/launch/rtabmap.launch">
+        <arg name="rtabmap_args" value="--delete_db_on_start --Optimizer/GravitySigma 0.3 --Rtabmap/DetectionRate 1.0 --Rtabmap/Vis/MinInliers 10"/>
+        <arg name="depth_topic" value="/camera/aligned_depth_to_color/image_raw"/>
+        <arg name="rgb_topic" value="/camera/color/image_raw"/>
+        <arg name="camera_info_topic" value="/camera/color/camera_info"/>
+        <arg name="approx_sync" value="true"/>
+        <arg name="approx_sync_max_interval" value="0.02"/>
+        <arg name="wait_imu_to_init" value="true"/>
+        <arg name="imu_topic" value="/nano/imu_corrected"/>
+        <arg name="queue_size" value="30"/>
+        <arg name="sync_queue_size" value="10"/>
+        <arg name="wait_for_transform" value="0.5"/>
+    </include>
+
+
+</launch>
