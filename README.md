@@ -32,13 +32,13 @@ Dual-output 3000mAh power bank
 ### Core Framework:
 ROS Noetic
 ### Key Packages:
-RTAB-Map for SLAM
-Point Cloud Library (PCL) for obstacle processing
-Hector SLAM (initial robot testing phase)
+RTAB-Map for SLAM. 
+Point Cloud Library (PCL) for obstacle processing. 
+Hector SLAM (initial robot testing phase).
 ### Custom Nodes:
-Obstacle detection and clustering
-APF navigation algorithm
-System diagnostics monitoring
+Obstacle detection and clustering.
+APF navigation algorithm.
+System diagnostics monitoring.
 
 ## Performance Metrics
 Tested across two environments with four participants:
@@ -53,11 +53,11 @@ Significant environmental impact observed
 
 ## Getting Started
 ### Prerequisites
-Ubuntu 20.04
-ROS Noetic
-Python 3
-Intel RealSense SDK
-RTAB-Map SRC
+Ubuntu 20.04. 
+ROS Noetic. 
+Python 3. 
+Intel RealSense SDK. 
+RTAB-Map SRC.
 
 ## Installation
 ```bash
