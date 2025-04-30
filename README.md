@@ -31,23 +31,23 @@ Dual-output 3000mAh power bank
 ## Software Stack
 ### Core Framework:
 ROS Noetic
-## Key Packages:
+### Key Packages:
 RTAB-Map for SLAM
 Point Cloud Library (PCL) for obstacle processing
 Hector SLAM (initial robot testing phase)
-## Custom Nodes:
+### Custom Nodes:
 Obstacle detection and clustering
 APF navigation algorithm
 System diagnostics monitoring
-## Performance Metrics
+### Performance Metrics
 Tested across two environments with four participants:
-### Success Rate:
+#### Success Rate:
 Up to 83.25% with compass feedback
-### Collisions:
+#### Collisions:
 0.33-1.17 depending on feedback type
-### Reaction Time:
+#### Reaction Time:
 3.43-4.93 seconds
-### Localisation Stability:
+#### Localisation Stability:
 Significant environmental impact observed
 
 ## Getting Started
